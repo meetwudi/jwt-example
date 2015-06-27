@@ -2,6 +2,7 @@ var express = require('express');
 var router = express.Router();
 var passport = require('passport');
 var User = require('../models/User');
+var jwt = require('jsonwebtoken');
 
 var authOptions = { 
   successRedirect: '/', 
@@ -27,8 +28,32 @@ router.get('/login', function(req, res, next) {
   res.render('login');
 });
 
-router.post('/login', passport.authenticate('local', authOptions), function(req, res, next) {
-  return res.redirect('/');
+router.post('/login', function(req, res, next) {
+  passport.authenticate('local', function(err, user, info) {
+    if (err) return next(err);
+    var acceptType = req.get('Accept');
+    if (!user) {
+      if (acceptType === 'application/json') {
+        return res.json(401, { error: 'error' });
+      }
+      else {
+        return res.redirect('/login');
+      }
+    }
+    if (acceptType === 'application/json') {
+      var token = jwt.sign({ username: user.username }, process.env.JWT_SECRET, {
+        expiresInSeconds: 60,
+        issuer: 'John Wu'
+      });
+      return res.json({ token: token });
+    }
+    else {
+      req.logIn(user, function(err) {
+        if (err) return next(err);
+        return res.redirect('/');
+      });
+    }
+  })(req, res, next);
 });
 
 router.get('/logout', function(req, res, next) {
